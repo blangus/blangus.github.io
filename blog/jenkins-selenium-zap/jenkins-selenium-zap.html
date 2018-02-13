@@ -1,0 +1,196 @@
+<html> 
+<head> 
+<title>Blog - Burak Kelebek</title> 
+<script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js?skin=sunburst"></script>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+
+<body> 
+<div id="console"> 
+<center>
+<ul id="menu">
+  <li><a id="c" href="../../index.html">Home</a></li>
+  |
+  <li><a id="c" href="../../blog.html">Blog</a></li>
+  |
+  <li><a id="c" href="../../advisory.html">Advisories</a></li>
+  |
+  <li><a id="c" href="../../contact.html">Contact</a></li>
+</ul></center>
+
+<title>Using OWASP ZAP, Selenium, and Jenkins to automate your security tests  - Blog</title>
+
+</head>
+
+<body>
+<header>
+<p class="meta">Burak Kelebek, June 2016</p>
+<h1 class="title">Using OWASP ZAP, Selenium, and Jenkins to automate your security tests </h1>
+<p></p>
+<h3>-- Introduction</h3>
+<p>In my previous <a href="../zap-jenkins/zap-jenkins.html">blog post</a> I presented a simple example on how to run OWASP ZAP together with Jenkins. This set-up would simply spider a target host, collect links and perform an active scan. Obvious downside of this set-up is that it's impossible for ZAP’s spider functionality to find all the links and pages, for example if they are hidden behind logical procedures like forms. This means that ZAP will never be able to completely scan the target application. Fortunately, you could feed ZAP with functional tests so it will find every page.
+
+A customer with a large-scaled development environment and build street had the requirement to be able to perform deployments in a single day. In such a fast development process, test automation was the solution to have security checks involved. The customer already had a large amount of regression tests available in Selenium. This needs to be tied to Cucumber and Jenkins, which were already in place. We had the challenge to seamlessly implement our solution within their infrastructure.</p>
+<h3>-- Regression tests</h3>
+<p>To have a more effective security test ideally you would like to run Selenium (regression) tests through ZAP. This gives a more reliable cover of any forms or links which could be missed by ZAP. This makes ZAP more familiar with the target application. If you have these tests already written, by the QA department for example, this blog will show you how to run them through ZAP in an enterprise-friendly solution. </p>
+<p>In this example we will use a Groovy script to control ZAP through its API, Selenium to control the web driver, and Cucumber to run the tests with. I recommend using the API web interface of ZAP to easily check the results, find scans and other information about the application. </p>
+<p><img src="dia.png" width="700" height="400"></p>
+<h3>-- Control ZAP</h3>
+<p>ZAP can be controlled in many different ways and with different scripting/programming languages. In this example I used Groovy to perform GET requests to the ZAP API. As seen in the diagram above, we want this script to Active Scan functional tests that have passed through ZAP. Below I will provide snippets of the Groovy code that is used to control ZAP. </p>
+<p><u>Create generic method to call API of ZAP:</u></p>
+
+<p><pre class="prettyprint">def ZAPApiCall(url, path, query) {
+&nbsp;&nbsp;&nbsp;def ZAProxy = new HTTPBuilder(url)
+&nbsp;&nbsp;&nbsp;data = ZAProxy.request(GET, JSON) { req -&gt;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;uri.path = path
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;requestContentType = JSON
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;uri.query = query
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;headers.Accept = 'application/json'
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// response handler for a successful response code:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;response.success = { resp, json -&gt;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;assert resp.status == 200
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;assert resp.contentType == JSON.toString()
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return json
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;response.failure = { resp, json -&gt;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;throw new RuntimeException("${json}")
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;}
+}</p></pre>
+
+<p><pre class="prettyprint"><code>def apikey = '&lt;apikey of ZAP&gt;'
+def url = '&lt;ip of ZAP node&gt;'
+def applicationURL = ""
+
+// Get proxy history (site-tree) of ZAP and filter duplicates
+path = '/JSON/core/view/sites'
+ZAPApiCall(url, path, null)
+def list = new JsonSlurper().parseText(JsonOutput.toJson(data))
+def sites = list.sites
+sites.unique()
+
+// Check if applicationURL is found in the proxy history (site-tree) of ZAP.
+println "Checking proxy-history of ZAP"
+if (!sites.isEmpty()) {
+
+println "Setting option to scan all headers of request.."
+path = '/JSON/ascan/action/setOptionScanHeadersAllRequests'
+query = [apikey: "${apikey}", Boolean: "true"]
+ZAPApiCall(url, path, query)
+
+// Exclude certain sites from the the scan
+&nbsp;&nbsp;&nbsp;String[] excludeSites = ["http://&lt;sitestoexclude&gt;.*"]
+&nbsp;&nbsp;&nbsp;for (String item : excludeSites) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;regexSite = item
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;path = '/JSON/ascan/action/excludeFromScan'
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;query = [apikey: "${apikey}", regex: regexSite]
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ZAPApiCall(url, path, query)
+&nbsp;&nbsp;&nbsp;}</code></pre> 
+Since there can be multiple different hosts in your functional tests I've written the following script to loop through the Sites History of ZAP and scan each of the hosts. This can be tricky, since it will also try to scan all domains (also external ones). Therefore I've expanded the script to only scan sites that end with a certain domain. </p>
+<pre class="prettyprint">
+<p><code>// If multiple applicationURLs are found, perform Active Scan on all URLS
+&nbsp;&nbsp;&nbsp;for (String item : sites) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;applicationURL = item
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// Only scan sites which end with .&lt;yourdomain&gt;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (!applicationURL.endsWith(".&lt;yourdomain&gt;")) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;continue;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}</code>
+
+<code>// Start Active scan
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;println "Starting Active Scan"
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;path = '/json/ascan/action/scan'
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;query = [apikey : "${apikey}", url: "${applicationURL}",
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; recurse: 'true', inScopeOnly: 'false']
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ZAPApiCall(url, path, query)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;def scanId = data.scan
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;println "Started Active Scan: ${scanId} on target: ${applicationURL}"
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;def responseText = "no responses yet"
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;def responseCode = 200
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// 10 second wait times 6 for one minute times number of minutes.
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;def maxRetries = 30 * 30
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;def retryNum = 0
+
+// Poll status of scan
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;while (!responseText.contains("100") &amp;&amp; responseCode == 200) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (retryNum &gt;= maxRetries) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;throw new RuntimeException("ZAP Active Scanner has not completed after XXX minutes. Exiting.")
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;//10 seconds wait time
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sleep 10000
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;path = '/json/ascan/view/status/'
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;query = [scanId: "${scanId}"]
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ZAPApiCall(url, path, query)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;retryNum += 1
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;responseText = data.status
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;println "Scan in progress: ${responseText}"
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}
+
+// Fetch alerts of the scan
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;path = '/json/core/view/alerts/'
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;query = [baseurl: "${applicationURL}"]
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ZAPApiCall(url, path, query)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;def dataAlertList = data.alerts;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;for (alert in dataAlertList) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;//remove not needed elements from alerts
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;alert.remove("description")
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;alert.remove("solution")
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;alert.remove("reference")
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;alert.remove("wascid")
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;alert.remove("other")
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}
+
+// alerts are stored in data object -&gt; print out in console:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print data
+&nbsp;&nbsp;&nbsp;}
+// Clean up scan and logs -&gt; Create new session
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;println "Creating new sessions and clearing previous session data"
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;path = '/JSON/core/action/newSession'
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;query = [apikey: "${apikey}", overwrite: 'true']
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ZAPApiCall(url, path, query)
+&nbsp;&nbsp;&nbsp;}
+else {
+&nbsp;&nbsp;&nbsp;println "All tests have failed or ApplicationURL not found in proxy history of ZAP, therefore Active Scan will not be started"
+}</code></p></pre>
+<h3>-- Selenium</h3>
+<p>Next step is to configure Selenium to run through ZAP. If you are familiar with Selenium Grid and want to run your own Node <u>make sure to set a unique value to your specific node</u> (like version number 99). This will be used later to specify the specific node that you want the tests to run on.</p>
+<p>The following configuration (capabilities) should be added in the code to set a proxy on the Node and make sure that the version numbers match up. This can be done in various ways, the example below could be added to the Selenium tests you already have. Additionally you should configure the browser to ignore certificate errors since ZAP will sign certificates with its own generated root CA. </p>
+<p><pre class="prettyprint"><code>// Instead of defining the proxy here, you could also use the properties file.
+String httpProxy = “localhost:8080”;</code></p><code>
+<p>private DesiredCapabilities getDesiredCapabilities() {
+&nbsp;&nbsp;&nbsp;DesiredCapabilities desiredCapabilities;
+&nbsp;&nbsp;&nbsp;if ("firefox".equals(browser)) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;desiredCapabilities = DesiredCapabilities.firefox();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;desiredCapabilities.setCapability(FirefoxDriver.PROFILE, FirefoxConnection.createProfile());</p>
+<p>&nbsp;&nbsp;&nbsp;} else if ("chrome".equals(browser)) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;desiredCapabilities = DesiredCapabilities.chrome();
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;desiredCapabilities.setVersion(browserVersion);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;desiredCapabilities.setCapability("chrome.switches", Arrays.asList("--ignore-certificate-errors"));</p>
+<p>&nbsp;&nbsp;&nbsp;} else if ("internetexplorer".equals(browser)) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;desiredCapabilities = DesiredCapabilities.internetExplorer();</p>
+<p>&nbsp;&nbsp;&nbsp;} else {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;throw new IllegalArgumentException(browser + " not supported");
+&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;desiredCapabilities.setCapability(CapabilityType.PROXY, createProxy());
+&nbsp;&nbsp;&nbsp;desiredCapabilities.setPlatform(getPlatform(platform));
+&nbsp;&nbsp;&nbsp;return desiredCapabilities;
+}</p>
+</code><p><code>public Proxy createProxy() {
+&nbsp;&nbsp;&nbsp;return new Proxy()
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;.setProxyType(MANUAL)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;.setHttpProxy(httpProxy);
+}</code></p></pre></p>
+<p>Now the code is ready, the Selenium node and Zaproxy can be started:</p>
+<p><code>$ java -jar selenium-server-standalone-2.44.0.jar -role node -hub http://localhost:4444/grid/register -browser browserName=chrome,version=99</code></p>
+<p>Make sure that ZAP is running on the same server as the Selenium Node. Start ZAP with following command: </p>
+<p><code>$ ./ZAP.sh -daemon -host 0.0.0.0 -config api.key=&lt;apikey&gt;</code> </p>
+<h3>-- Jenkins set-up</h3>
+<p>In Jenkins, add the Cucumber tag(s) of the regression tests that you would like to run through ZAP. Make sure that the code to set up the proxy setting and fetch the node from Selenium Grid before running any functional tests. After the functional tests are finished kick off the Groovy script to Active Scan URLs found by ZAP. </p>
+<p>I originally wrote this article for Securify B.V.<a href="https://securify.nl/blog/SFY20160601/using_owasp_zap__selenium__and_jenkins_to_automate_your_security_tests_.html"> Read more.</a></p>			</div>
+		</div> 
+	  </div>
+	</div>
+</div>
+</body>
+</body> 
+</html> 

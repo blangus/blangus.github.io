@@ -1,0 +1,128 @@
+<html> 
+<head> 
+<title>Blog - Burak Kelebek</title> 
+<script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js?skin=sunburst"></script>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+<body> 
+<div id="console"> 
+<center>
+<ul id="menu">
+  <li><a id="c" href="../../index.html">Home</a></li>
+  |
+  <li><a id="c" href="../../blog.html">Blog</a></li>
+  |
+  <li><a id="c" href="../../advisory.html">Advisories</a></li>
+  |
+  <li><a id="c" href="../../contact.html">Contact</a></li>
+</ul></center>
+
+<title>Automating security tests using OWASP ZAP and Jenkins - Blog</title>
+<p class="meta">Burak Kelebek, March 2015</p>
+<h1 class="title">Automating security tests using OWASP ZAP and Jenkins</h1>
+
+<h3>-- Introduction</h3>
+<p>The demand for security tests within companies is increasing. These tests can be executed in different ways, each with its own pros and cons. In my opinion, nothing beats manual code review in combination with hands-on testing performed by an experienced security specialist. In an ideal situation a company would have a big team of these specialists performing continuous tests and reviews on every change made to applications. In reality most companies don’t have the resources to achieve this goal. Automated scans can offer a solution to quickly test applications. In this article I'll explain how to automate security tests using OWASP ZAP and Jenkins.</p>
+<p><em>Like this blog? Read the follow up <a href="../jenkins-selenium-zap/jenkins-selenium-zap.html">Using OWASP ZAP, Selenium, and Jenkins to automate your security tests</a></em></p>
+<h3>-- Note on automated testing</h3>
+<p>Obviously, one cannot fully rely on automated scans to find all vulnerabilities in applications. In addition there is always a security specialist needed to evaluate the results. I see automated scans as complementary to manual testing. Occasionally, it will find something you've missed while testing, other times it won't show anything.</p>
+<h3>-- Integration in the software development lifecycle</h3>
+<p>Ideally, automated security scans should be integrated within the software development lifecycle of a company. Every time a developer makes changes or additions to an application, the security scans will start scanning for security related issues.</p>
+<p>If an issue is identified, the development/security department should be notified (by email) about the issue. This creates a short feedback loop to the developers, which eventually will create more security awareness within the development department.</p>
+<p>In theory a developer receives feedback of identified security issues within couple hours after submitting his/her code and updating the environment. However, I always advise that a security specialist evaluates &amp; verifies if the identified issues are legitimate or false positives before the results are sent to developers.</p>
+<p>Adding automated security tests to the software development lifecycle requires either to construct tests by hand or incorporate existing security tools, which can be automated. Web vulnerability scan tools like <a href="https://www.owasp.org/index.php/OWASP_Zed_Attack_Proxy_Project">OWASP Zed Attack Proxy</a> (ZAP) can be controlled in an automated manner and are therefore suitable for our automated security testing. OWASP ZAP is a free to use, open-source security application which can scan web applications for known security issues, like vulnerabilities included in the <a href="https://www.owasp.org/index.php/Category:OWASP_Top_Ten_Project">OWASP Top 10</a> security bugs.</p>
+<img src="top10.png" alt="/blog/SFY20150303/top10.png">
+<p>Figure 1: OWASP Top 10 - 2013</p>
+<p>The steps and scripts listed in this article can be used to add automated tests to a continuous integration server like Jenkins. If your company uses Jenkins to update applications, you can set up a script to run after a certain application is updated. </p>
+<h3>-- Scanner configuration</h3>
+<p>For convenience we'll be using <a href="https://www.owasp.org/index.php/Category:OWASP_Top_Ten_Project">Kali Linux</a>, a Linux distribution targeted at pentesters. OWASP ZAP comes pre-installed on Kali Linux. Download and install Kali Linux on a server or download a VM from the following location: <a href="https://www.kali.org/downloads/">https://www.kali.org/downloads/</a>.</p>
+<p>We want Jenkins to connect to Kali over SSH. After the installation of Kali is finished, start the SSH server. </p>
+<p><code><pre class="prettyprint">$ sudo service ssh start</code></pre></p>
+<p>If SSH is not installed yet, install it by entering following command on the console:</p>
+<p><code><pre class="prettyprint">$ sudo apt-get install openssh-server</code></pre></p>
+<h3>-- Running ZAP using Python</h3>
+<p>We can access OWASP ZAP through its <a href="https://code.google.com/p/zaproxy/wiki/ApiPython">Python API</a>. Before we can use this API we need to build and install it. Download the API from the following location:
+<a href="http://sourceforge.net/projects/zaproxy/files/client-api/">http://sourceforge.net/projects/zaproxy/files/client-api/</a></p>
+<p>Build the API using the following commands:</p>
+<p><code><pre class="prettyprint">$ cd python/api/
+$ python setup.py build
+$ sudo python setup.py install</code></pre></p>
+<p>Next we'll create our Python script that invoke OWASP ZAP. Create a new file <em>website-scan.py</em> with the content listed below.
+
+<code><pre class="prettyprint">#!/usr/bin/env python
+<p>import time
+from pprint import pprint
+from zapv2 import ZAPv2</p>
+<p># Here the target is defined and an instance of ZAP is created. 
+target = 'http://www.target.site/'
+zap = ZAPv2()</p>
+<p># Use the line below if ZAP is not listening on 8090. 
+# zap = ZAPv2(proxies={'http': 'http://127.0.0.1:8090', 'https': 'http://127.0.0.1:9090'})</p>
+<p># ZAP starts accessing the target.
+print 'Accessing target %s' % target
+zap.urlopen(target)
+time.sleep(2)</p>
+<p># The spider starts crawling the website for URL’s
+print 'Spidering target %s' % target
+zap.spider.scan(target)</p>
+<p># Progress of spider
+time.sleep(2)
+print 'Status %s' % zap.spider.status
+while (int(zap.spider.status) &lt; 100):
+&nbsp;&nbsp;&nbsp;print 'Spider progress %: ' + zap.spider.status</p>
+<p>&nbsp;&nbsp;&nbsp;time.sleep(400)</p>
+<p>print 'Spider completed'</p>
+<p># Give the passive scanner a chance to finish
+time.sleep(5)</p>
+<p># The active scanning starts
+print 'Scanning target %s' % target
+zap.ascan.scan(target)
+while (int(zap.ascan.status) &lt; 100):
+&nbsp;&nbsp;&nbsp;print 'Scan progress %: ' + zap.ascan.status</p>
+<p>&nbsp;&nbsp;&nbsp;time.sleep(600)</p>
+<p>print 'Scan completed'</p>
+# Report the results
+print 'Hosts: ' + ', '.join(zap.core.hosts)
+print 'Alerts: '
+pprint(zap.core.alerts())
+</code></pre> </p>
+<p>This script starts off by defining the target URL. After setting the proxy details it will crawl (spider) the website to discover URL's on the target web application. When crawling is finished, it starts with an active scan to check for known vulnerabilities within the discovered URLs. It ends with printing the findings to the console. </p>
+<p>The output can be overwhelming at first. To organize it to your needs, you can decide to remove (unwanted) items from the output using following Python code:</p>
+<p><code><pre class="prettyprint">for element in alerts["alerts"]:
+&nbsp;&nbsp;&nbsp;# Navigation alert, alerts contain a list which contains a dictionary
+&nbsp;&nbsp;&nbsp;del element["description"]
+&nbsp;&nbsp;&nbsp;del element["solution"]
+&nbsp;&nbsp;&nbsp;del element["id"]
+&nbsp;&nbsp;&nbsp;del element["messageId"]
+&nbsp;&nbsp;&nbsp;del element["reliability"]
+&nbsp;&nbsp;&nbsp;del element["other"]
+&nbsp;&nbsp;&nbsp;del element["reference"]
+&nbsp;&nbsp;&nbsp;del element["param”]</code></pre></p>
+<p>You can extend the script above to start a new instance of OWASP ZAP for each scan and to close it afterwards:</p>
+<p><code><pre class="prettyprint">import os
+import subprocess</code></pre></p><code><pre class="prettyprint">
+<p>print 'Starting ZAP ...'
+subprocess.Popen(['/usr/share/zaproxy/zap.sh','-daemon'],stdout=open(os.devnull,'w'))
+print 'Waiting for ZAP to load, 10 seconds ...'
+time.sleep(10)</p>
+<p>[...]</p>
+</code></pre><p><code><pre class="prettyprint"># To close ZAP:
+zap.core.shutdown()</code></pre></p>
+<h3>-- Starting OWASP ZAP from Jenkins</h3>
+<p>Use the following steps to start OWASP ZAP from <a href="https://jenkins-ci.org/">Jenkins</a></p>
+<p>1. Create a new 'Build a free-style software project' in Jenkins.
+2. Add a new build step to project and select 'execute shell'.
+3. Define the path to the python script, which you saved in Kali Linux. For example <em>python /root/Desktop/website-scan.py</em>.</p>
+<p>For Jenkins to be able to access this machine and execute commands, Jenkins should authenticate with an SSH key to this machine. You can achieve this by copy-pasting Jenkins' public key in the <em>authorized_keys</em> file on Kali. After the key has been added, add the IP address of Kali Linux to 'Configuration&gt;SSH Server' in Jenkins. </p>
+<img src="zapsetup.png" alt="/blog/SFY20150303/zapsetup.png">
+<p>Figure 2: test environment setup</p>
+<h3>-- Reporting</h3>
+<p>As an extra feature, you can implement a reporting functionality within Jenkins to automatically send emails when it detects medium or high security risk issues. To achieve this, install plugin 'text-finder' into Jenkins and add the following regex in the project: </p>
+<p><code><pre class="prettyprint">.*(?i)high.*|.*(?i)medium.*</code></pre></p>
+<p>This plugin will check the output in Jenkins (where the alerts are generated) for medium or high risk vulnerabilities. If it finds any, the project's status is changed to 'unstable'. You can set the plugin <em>email-ext</em> from Jenkins to send an email to pre-defined recipients when the status of a project is 'unstable'.</p>
+<h3>-- Final note</h3>
+<p>Run the scans with a maximum amount of one per day. Security scanning with OWASP ZAP normally takes about 2.5 hours, whereas updating an application with new code takes about 15 minutes. Since applications can be updated multiple times a day, this could cause the scans to run slow. One scan a day is a good guideline, in theory developers will get feedback not more than 24 hours after they updated an application.</p>
+<p>In conclusion, implementing automated security testing within your software development lifecycle is not that hard. This article shows how to create a simple setup using Kali, OWASP ZAP, and Jenkins. </p>			
+<p>I originally wrote this article for Securify B.V.<a href="https://securify.nl/blog/SFY20150303/automating_security_tests_using_owasp_zap_and_jenkins.html"> Read more.</a></p></div>
+
+</div></body></head></html>
+

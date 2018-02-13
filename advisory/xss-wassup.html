@@ -1,0 +1,56 @@
+<html> 
+<head> 
+<title>Advisory - Burak Kelebek</title> 
+<link rel="stylesheet" type="text/css" href="../style.css">
+
+<script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js?skin=sunburst"></script>
+
+<body> 
+<div id="console"> 
+<center>
+<ul id="menu">
+  <li><a id="c" href="../index.html">Home</a></li>
+  |
+  <li><a id="c" href="../blog.html">Blog</a></li>
+  |
+  <li><a id="c" href="../advisory.html">Advisories</a></li>
+  |
+  <li><a id="c" href="../contact.html">Contact</a></li>
+</ul></center>
+
+<title>Persistent Cross-Site Scripting in WassUp Real Time Analytics WordPress Plugin - Security Advisories and Insights - Burak Kelebek</title>
+<p class="meta">Burak Kelebek, October 2016</p>
+<h1 class="title">Persistent Cross-Site Scripting in WassUp Real Time Analytics WordPress Plugin</h1>
+<p></p>
+<h3>-- Abstract</h3>
+<p>A stored Cross-Site Scripting (XSS) vulnerability has been found in the WassUp Real Time Analytics WordPress Plugin. By using this vulnerability an attacker can inject malicious JavaScript code into the application, which will execute within the browser of any user who views the Activity Log, in general WP admin.</p>
+<h3>-- OVE ID</h3>
+<p>OVE-20160717-0002</p>
+<h3>-- Tested versions</h3>
+<p>This issue was successfully tested on <a href="https://wordpress.org/plugins/wassup/">WassUp Real Time Analytics</a> version 1.9.</p>
+<h3>-- Fix</h3>
+<p>This issue has been fixed in <a href="https://wordpress.org/plugins/wassup/changelog/">version 1.9.1</a>. </p>
+<h3>-- Introduction</h3>
+<p>The <a href="https://wordpress.org/plugins/wassup/">WassUp Real Time Analytics</a> WordPress plugin can be used to analyze visitors' traffic with real-time statistics.</p>
+<h3>-- Details</h3>
+<p>A stored Cross-Site Scripting vulnerability was found in the Wassup WordPress plugin. This issue allows an attacker to perform a wide variety of actions, such as stealing Administrators' session tokens, or performing arbitrary actions on their behalf. Particularly interesting about this issue is that an anonymous user can simply store his XSS payload in the Admin dashboard by just visiting the public site with a malformed link.</p>
+<p>The malicious script code can be sent by anyone visiting the website (unauthenticated). The malicious code is then executed in the admin panel under section 'Current Visitors' of the Wassup plugin page. </p>
+<p>The issue exists in the file wassup.php and is caused by the lack of output encoding on the request-uri parameter. The vulnerable code is listed below.</p>
+<p><code><pre class="prettyprint">&lt;/span&gt;&lt;span class="request-uri"&gt;&lt;?php echo wassupURI::url_link</code></p></pre>
+<p>and in the file wassup.class.php:</p>
+<p><code><pre class="prettyprint">else $urllink='&lt;a href="'.self::add_siteurl("$urlrequested").'" target="_BLANK"&gt;'.stringShortener("$urlrequested",$chars).'&lt;/a&gt;';
+return $urllink;</code></pre></p>
+<h3>-- Proof of concept</h3>
+<p>1. Log in as admin and empty the log data of Wassup for a clean test -&gt; http://&lt;targetsite&gt;/wp-admin/admin.php?page=wassup-options -&gt; Manage Files and Data -&gt; Empty table</p>
+<p>2. Open Burp Suite and sent the following requests one after another:</p>
+<p><code>GET /test HTTP/1.1<br>
+Host: &lt;targetsite&gt;</code></p>
+<p><code>GET ///--&gt;&lt;/SCRIPT&gt;"&gt;'&gt;&lt;SCRIPT&gt;alert(String.fromCharCode(70,70,70))&lt;/SCRIPT&gt; HTTP/1.1<br>
+Host: &lt;targetsite&gt;</code></p>
+<p>3. Open the Current Visitors Online page as an admin: http://&lt;targetsite&gt;/wp-admin/admin.php?page=wassup-online</p>
+<p>Note: Your request should be detected as a Spider/Bot by the Wassup plugin. One way to do this is by sending the requests above through Burp Suite.</p>
+<p>I originally wrote this article for Securify B.V.<a href="https://securify.nl/en/advisory/SFY20160741/persistent-cross-site-scripting-in-wassup-real-time-analytics-wordpress-plugin.html"> Read more.</a></p> 			</div>
+		</div>
+
+
+</div></body></head></html>

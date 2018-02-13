@@ -1,0 +1,68 @@
+<html> 
+<head> 
+<title>Advisory - Burak Kelebek</title> 
+<link rel="stylesheet" type="text/css" href="../style.css">
+<script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js?skin=sunburst"></script>
+
+<body> 
+<div id="console"> 
+<center>
+<ul id="menu">
+  <li><a id="c" href="../index.html">Home</a></li>
+  |
+  <li><a id="c" href="../blog.html">Blog</a></li>
+  |
+  <li><a id="c" href="../advisory.html">Advisories</a></li>
+  |
+  <li><a id="c" href="../contact.html">Contact</a></li>
+</ul></center>
+
+<title>Multiple blind SQL injection vulnerabilities in FormBuilder WordPress Plugin - Security Advisories and Insights - Burak Kelebek</title>
+
+<p class="meta">Burak Kelebek, July 2016</p>
+<h1 class="title">Multiple blind SQL injection vulnerabilities in FormBuilder WordPress Plugin</h1>
+<p></p>
+<h3>-- Abstract</h3>
+<p>Multiple blind SQL injection vulnerabilities were found in the FormBuilder WordPress Plugin. This allows an attacker, granted he has Author or higher privileges, to extract arbitrary data (eg the Administrator's password hash) from the WordPress database. Since there is no CSRF protection in place, an attacker could also lure an logged-in Author to perform malicious SQL commands on the database.</p>
+<h3>-- OVE ID</h3>
+<p>OVE-20160724-0008</p>
+<h3>-- Tested versions</h3>
+<p>This issue was successfully tested on <a href="https://wordpress.org/plugins/formbuilder/">FormBuilder</a> version 1.05.</p>
+<h3>-- Fix</h3>
+<p>This issue is resolved in <a href="https://downloads.wordpress.org/plugin/formbuilder.1.08.zip">FormBuilder version 1.08</a>.</p>
+<h3>-- Introduction</h3>
+<p>The FormBuilder Plugin for WordPress allows you to build contact forms in the WordPress administrative interface without needing to know PHP or HTML.</p>
+<h3>-- Details</h3>
+<p>It was discovered that FormBuilder is affected by multiple blind SQL injection vulnerabilities. Using these issues it is possible for a logged on Author (or higher privileges) to extract arbitrary data (eg, the Administrator's password hash) from the WordPress database. Since there is no CSRF protection in place, an attacker could also lure an logged-in Author to perform malicious SQL commands on the database.</p>
+<p>The vulnerabilities exist in the following functions:
+- formbuilder_options_exportForm 
+- formbuilder_options_removeForm 
+- formbuilder_options_editForm </p>
+<p>The "fbid" parameter used in the above functions can be supplied by the user and is appended to the WHERE clause as "form_id" directly without performing any sanitization or escaping.</p>
+<p>Example 1:</p>
+<p>formbuilder/php/formbuilder_admin_functions.php 
+<code><pre class="prettyprint">case "exportForm":
+formbuilder_options_exportForm($_GET['fbid']);</code></p>
+<p>
+formbuilder/php/formbuilder_admin_pages.inc.php
+<code>function formbuilder_options_exportForm($form_id)
+ &nbsp;&nbsp;&nbsp;{
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[..]
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/*
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; * Load the form fields from the database.
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;*/
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$sql = "SELECT * FROM " . FORMBUILDER_TABLE_FORMS . " WHERE id = '$form_id' LIMIT 0,1;";
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$results = $wpdb-&gt;get_results($sql, ARRAY_A);
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$form = $results[0];
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$sql = "SELECT * FROM " . FORMBUILDER_TABLE_FIELDS . " WHERE form_id = $form_id ORDER BY display_order ASC;";
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$fields = $wpdb-&gt;get_results($sql, ARRAY_A);</code></p></pre>
+<h3>-- Proof of concept</h3>
+<p><a href="http://%3Ctarget%3E/wp-admin/tools.php?page=formbuilder.php&amp;fbtag&amp;pageNumber&amp;fbaction=exportForm&amp;fbid=1%20AND%20(SELECT%20*%20FROM%20(SELECT(SLEEP(5)))WSdS)">http://&lt;target&gt;/wp-admin/tools.php?page=formbuilder.php&amp;fbtag&amp;pageNumber&amp;fbaction=exportForm&amp;fbid=1 AND (SELECT * FROM (SELECT(SLEEP(5)))WSdS)</a></p>
+			
+<p>I originally wrote this article for Securify B.V.<a href="https://securify.nl/en/advisory/SFY20160764/multiple-blind-sql-injection-vulnerabilities-in-formbuilder-wordpress-plugin.html"> Read more.</a></p> 
+</div>
+		</div>
+
+</div></body></head></html>

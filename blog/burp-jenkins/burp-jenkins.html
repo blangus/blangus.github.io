@@ -1,0 +1,126 @@
+<html> 
+<head> 
+<title>Blog - Burak Kelebek</title> 
+<script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js?skin=sunburst"></script>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+<body> 
+<div id="console"> 
+<center>
+<ul id="menu">
+  <li><a id="c" href="../../index.html">Home</a></li>
+  |
+  <li><a id="c" href="../../blog.html">Blog</a></li>
+  |
+  <li><a id="c" href="../../advisory.html">Advisories</a></li>
+  |
+  <li><a id="c" href="../../contact.html">Contact</a></li>
+</ul></center>
+
+<title>Burp Suite security automation with Selenium and Jenkins - Blog - Burak Kelebek</title>
+
+</head>
+
+<p class="meta">Burak Kelebek, September 2016</p>
+<h1 class="title">Burp Suite security automation with Selenium and Jenkins</h1>
+<p></p>
+<h3>-- Introduction</h3>
+<p>I am a big fan of automating security tests and lately I have been doing so a lot with the incredible REST API of OWASP ZAP. The process of automating security tests mainly consists of functional tests (in Selenium) being fed to the proxy of ZAP and afterwards performing an active scan on the proxy history. This combination of Selenium tests with ZAP has proven itself to be a solid success in many cases. You can read more about this set-up in my previous blogs <a href="../zap-jenkins/zap-jenkins.html">ZAP automation part 1</a> and <a href="../jenkins-selenium-zap/jenkins-selenium-zap.html">ZAP automation part 2</a>.</p>
+<h3>-- Burp REST API</h3>
+<p>But I am always on the lookout for new tools that can aid me in automation, and recently I found out that VMware has released a <a href="https://github.com/vmware/burp-rest-api"> REST/JSON API endpoint</a> to access the features of Burp Suite. I was already familiar with Burp Suite due to my experience as a penetration tester so I was excited to see if I could use it to automate Burp.</p>
+<p>Interested as I was, I immediately had a look at it and installed it locally. I started to play around with the different endpoints and tried to see if I could create a similar implementation of automated security tests as in my previous blogs about security automation. My goal was to create an implementation similar to the illustration below:</p>
+<p><img src="schema.png" alt="/blog/SFY20160901/schema.png"></p>
+<p>At first glance the features it offers seems a bit disappointing, but we have to keep in mind that this project was only released recently. In a follow-up blog I will write on how to add new features to the existing API. The features they do offer however are well documented and easy to implement. The most important features one would require are available and ready for use. Finally the power of Burp Suite can be harnessed through the use of scripts and therefore be automated.</p>
+<p><img src="api.png" alt="/blog/SFY20160901/api.png"></p>
+<h3>-- Proof Of Concept</h3>
+<p>Below I wrote a small POC which does an active scan on sites that are found in the proxy history of Burp. In this example I've used BWAPP as the target application. After the active scan finishes the HTML report will be saved locally.</p>
+<p><code><pre class="prettyprint">@Grab(group='org.codehaus.groovy.modules.http-builder', module='http-builder', version='0.7' )
+import groovyx.net.http.HTTPBuilder
+import static groovyx.net.http.Method.POST
+import static groovyx.net.http.Method.PUT
+import static groovyx.net.http.Method.GET
+import static groovyx.net.http.ContentType.JSON
+import static groovyx.net.http.ContentType.TEXT
+def url = '&lt;&gt;'
+&nbsp;&nbsp;&nbsp;
+// get proxy history and save unique to param sites
+def path = '/burp/proxy/history'
+apiCall(url, path, null)
+def sites = data.messages.host
+sites.unique()
+&nbsp;&nbsp;&nbsp;
+// Check if proxy history is empty
+if (!sites.isEmpty()) {
+&nbsp;&nbsp;&nbsp;println "Adding targets to scope of Burp"
+&nbsp;&nbsp;&nbsp;for (String item : sites) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (!item.endsWith("&lt;&gt;")) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;continue;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;println "Adding following site to scope: " + item
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;path = '/burp/target/scope'
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;query = [url: 'http://'+item]
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;putCall(url, path, query)
+&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;// If multiple applicationURLs are found, perform Active Scan on all URLS
+&nbsp;&nbsp;&nbsp;for (String item : sites) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;applicationURL = item
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// Only scan sites which end with .&lt;&gt;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (!applicationURL.endsWith("&lt;&gt;")) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;continue;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;// start active scan
+&nbsp;&nbsp;&nbsp;path = '/burp/scanner/scans/active'
+&nbsp;&nbsp;&nbsp;query = [baseUrl: 'http://'+item]
+&nbsp;&nbsp;&nbsp;postCall(url, path, query)
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;println 'Started active scan on target: ' + item
+&nbsp;&nbsp;&nbsp;def responseText = "no responses yet"
+&nbsp;&nbsp;&nbsp;def responseCode = 200
+&nbsp;&nbsp;&nbsp;def maxRetries = 30 * 30
+&nbsp;&nbsp;&nbsp;def retryNum = 0
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;// Poll status of scan
+&nbsp;&nbsp;&nbsp;while (!responseText.toString().contains("100") &amp;&amp; responseCode == 200) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;if (retryNum &gt;= maxRetries) {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;throw new RuntimeException("Active Scanner has not completed after XXX minutes. Exiting.")
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;//5 seconds wait time
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sleep 5000
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;path = '/burp/scanner/status'
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;apiCall(url, path, null)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;retryNum += 1
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;responseText = data.scanPercentage
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;println "Scan in progress: ${responseText}"
+&nbsp;&nbsp;&nbsp;}
+&nbsp;&nbsp;&nbsp;println 'Scan on target '+ item + ' finished'
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;println "Saving HTML report for target: " + item
+&nbsp;&nbsp;&nbsp;def address = url + "/burp/report?reportType=HTML"
+&nbsp;&nbsp;&nbsp;def data = new URL(address).getText()
+&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;//println address.toURL().text
+&nbsp;&nbsp;&nbsp;def foo = "foobar"
+&nbsp;&nbsp;&nbsp;File file = new File("&lt;&gt;"+item+".html")
+&nbsp;&nbsp;&nbsp;file &lt;&lt; data
+}
+&nbsp;&nbsp;&nbsp;
+}else{
+&nbsp;&nbsp;&nbsp;println "No sites found in proxy history. Scan will not be started."
+}</code></pre></p>
+<h3>-- Jenkins configuration</h3>
+<p>I've put all of this together in Jenkins. The Jenkins job kicks off Burp Suite and actively scans any host it found in its proxy history. I've installed the HTML publisher plugin to view the HTML report of Burp which I previously saved in the script. </p>
+<img src="jenkins2.png" alt="/blog/SFY20160901/jenkins2.png"></p>
+<p>Part of Jenkins configuration</p>
+<img src="jenkinsconsole.png" alt="/blog/SFY20160901/jenkinsconsole.png">
+<p>Jenkins console output</p>
+<img src="report1.png" alt="/blog/SFY20160901/report1.png">
+<p>Burp Suite's HTML report published in Jenkins</p>
+<img src="report2.png" alt="/blog/SFY20160901/report2.png">
+<p>More detailed view of Burp Suite's report</p>			
+<p>I originally wrote this article for Securify B.V.<a href="https://securify.nl/en/blog/SFY20160901/burp-suite-security-automation-with-selenium-and-jenkins.html"> Read more.</a></p></div>
+</div> 
+</div>
+
+</body></head>
+</html>
