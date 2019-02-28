@@ -5,6 +5,11 @@ html {
   body {
     background-color: #000
   }
+
+  a:hover { 
+    background-color: #0f0;
+  }
+
   #console {
     font-family: courier, monospace;
     color: #fff;
@@ -26,6 +31,10 @@ html {
   }
   #b {
     color: #ff0096;
+  }
+  #d {
+    color: #0bc;
+    font-size:20px; 
   }
 
   ul#menu li {
