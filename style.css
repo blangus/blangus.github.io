@@ -10,6 +10,10 @@ html {
     background-color: #0f0;
   }
 
+  #menu {
+    font-size:20px; 
+  }
+
   #console {
     font-family: courier, monospace;
     color: #fff;
