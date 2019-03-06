@@ -1,0 +1,127 @@
+<html> 
+<head> 
+<title>Blog - Burak Kelebek</title> 
+<script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js?skin=sunburst"></script>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+
+<body> 
+<div id="console"> 
+<center>
+<ul id="menu">
+  <li><a id="c" href="../../index.html">home</a></li>
+  |
+  <li><a id="c" href="../../resume.html">resume</a></li>
+  |
+  <li><a id="c" href="../../blog.html">blog</a></li>
+  |
+  <li><a id="c" href="../../advisory.html">advisories</a></li>
+  |
+  <li><a id="c" href="../../contact.html">contact</a></li>
+</ul></center>
+
+<title>One Orchestrator One Dashboard  - Blog</title>
+
+</head>
+
+<body>
+<header>
+<p class="meta">Burak Kelebek, Mar 2019</p>
+<h1 class="title">One Orchestrator One Dashboard</h1>
+<p></p>
+<h3>-- Introduction</h3>
+<p>I wanted to write a summarized blog about my experiences while implementing automated scans at a customer a while back. I needed a solution that is customizable, scalable and mostly open-source. I had little resources (just 1 small VM) to scan a dozen websites and API's for vulnerabilities with various tools. 
+
+My goal was to have one central place where I could configure all scanners and one central place to display all vulnerabilities. It should also be future-proof and scalable to 50-100 websites within one year. 
+
+<h3>-- The Orchestrator</h3>
+The orchestration part I decided to go with Jenkins because of my previous experiences with it and the advantages it has with scalabilty and customization with plugins etc. There is almost no limit in what you could configure in Jenkins. You can write python/groovy scripts to communicate with REST API's of various tools or simply execute system commands to start docker images. 
+
+Since my resources were low, I knew that running multiple scanners (as services) at once will probably overload the VM which will cause delay or even stop scans. That's one of the reasons I decided to use dockerized versions of scanning tools to perform the scans. Once the scan finishes I would simply remove the docker instance. 
+
+<p><img src="diagram.png" width="700" height="400">
+
+Within Jenkins the possibilties are almost limitless. I quickly found docker images of different types of popular tools which I wanted to use to scan websites with. I've put the configurations of these scanners below. I simply created a timed Job for each target in Jenkins which would periodically execute the configurations below. 
+
+<h3>-- Configurations</h3>
+
+<h4>// OWASP ZAP</h4>
+OWASP ZAP is fully dockerized and is available here: https://github.com/zaproxy/zaproxy/wiki/Docker 
+
+I slightly modified the code found at https://github.com/stephendonner/docker-zap to start the docker container. You can export the results of OWASP ZAP in a variety of different outputs.
+
+<pre class="prettyprint">CONTAINER_ID=$(docker run -u zap -p 2375:2375 -d owasp/zap2docker-weekly zap.sh -daemon -port 2375 -host 0.0.0.0 -config api.disablekey=true -config scanner.attackOnStart=true -config view.mode=attack -config connection.dnsTtlSuccessfulQueries=-1 -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true)
+
+# the target URL for ZAP to scan
+TARGET_URL=$1
+
+docker exec $CONTAINER_ID zap-cli -p 2375 status -t 120 && docker exec $CONTAINER_ID zap-cli -p 2375 open-url $TARGET_URL
+
+docker exec $CONTAINER_ID zap-cli -p 2375 spider $TARGET_URL
+
+docker exec $CONTAINER_ID zap-cli -p 2375 active-scan -r $TARGET_URL
+
+docker exec $CONTAINER_ID zap-cli -p 2375 alerts
+
+# docker logs [container ID or name]
+divider==================================================================
+printf "\n"
+printf "$divider"
+printf "ZAP-daemon log output follows"
+printf "$divider"
+printf "\n"
+
+docker logs $CONTAINER_ID
+
+# export html or xml report
+case $2 in
+--xmlreport ) echo "printing xml report"
+              wget -O report.xml 172.17.0.1:2375/OTHER/core/other/xmlreport/?formMethod=GET
+              ;;
+
+* ) echo "printing http report"
+    wget -O report.html 172.17.0.1:2375/OTHER/core/other/htmlreport/?formMethod=GET
+    ;;
+esac</pre>
+
+
+<h4>// SSL Labs</h4>
+The SSL scanner of Qualys is also dockerized and can be found here: https://github.com/jumanjihouse/docker-ssllabs-scan
+
+I simply use the command below to periodically check websites for SSL configuration. I export the results to json and will show lateron how to import them in a dashboard.
+
+<pre class="prettyprint">docker run --name foo jumanjiman/ssllabs-scan https://foo > sslres.json</pre>
+
+I would say the the configuration part of Jenkins and the scanners are the easy part. Next was to find a tool which could somehow import all the different findings and outputs (in different formats) of the tools and display them structured in one overview. Important keywords here are: false positive flagging, duplicate surpressing, accepting findings.
+
+At first I tried to go with the open-source version of Threadfix but quickly noticed some major fallbacks. Most of the time it didn't correctly import findings from various tools which resulted in findings to be missed. Also I noticed that once a finding is flagged as false positive it sometimes returned back in the report when the next scan was imported. Then someone advised me to look into Defect Dojo. At first Defect Dojo can seem quite overwhelming due to the fast amount of features, but once you get to know it, you wouldn't want to go back to anything else! Defect Dojo does all of the above things and more and has a well documented REST API.
+
+It has import possibilities of a lot of tools:
+<import scan defect dojo> 
+
+False positive reduction
+<false positive>
+
+Duplicate supression
+<duplicate surpression>
+
+After the scans are finished, you can use the REST API to automatically import reports into Defect Dojo. I use a simple curl command within the Jenkins job to push the report to Defect Dojo once the Docker container is stopped. Below some examples. Goed without saying that before you're able to import findings you need to create a project within Defect Dojo as wel as other configuration. Check out their docs for more: https://defectdojo.readthedocs.io/en/latest/
+
+<Import scan to Defect Dojo>
+
+<h4>// OWASP ZAP </h4>
+<pre class="prettyprint">time=$(date +'%Y-%m-%d')
+curl -i -F "file=@report.xml" -H "Authorization: ApiKey jenkins:foo" -F 'scan_type=ZAP Scan' -F 'tags=apicurl' -F 'verified=true' -F 'active=true' -F scan_date=${time} -F 'engagement=/api/v1/engagements/2/' http://127.0.0.1:8000/api/v1/importscan/</pre>
+
+<h4>// SSLabs </h4>
+<pre class="prettyprint">time=$(date +'%Y-%m-%d')
+curl -i -F "file=@sslres.json" -H "Authorization: ApiKey jenkins:foo" -F 'scan_type=SSL Labs Scan' -F 'tags=apicurl' -F 'verified=true' -F 'active=true' -F scan_date=${time} -F 'engagement=/api/v1/engagements/1/' http://127.0.0.1:8000/api/v1/importscan/</pre>
+
+Eventually the findings are all displayed within the dashboard of Defect Dojo.
+<dashboard image>
+
+The frame is now built. From now on you can simply add more supported scanners to Jenkins jobs. You can expand with Nmap or Nessus for infrastructure scans as wel as using other web application scanners. The results can simply be exported and imported to Defect Dojo.
+
+</div>
+</body>
+</body> 
+</html> 
