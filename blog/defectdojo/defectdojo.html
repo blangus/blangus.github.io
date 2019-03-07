@@ -29,25 +29,25 @@
 <h1 class="title">One Orchestrator One Dashboard</h1>
 <p></p>
 <h3>-- Introduction</h3>
-<p>I wanted to write a summarized blog about my experiences while implementing automated scans at a customer a while back. I needed a solution that is customizable, scalable and mostly open-source. I had little resources (just 1 small VM) to scan a dozen websites and API's for vulnerabilities with various tools. 
+<p>I've written a summarized blog about my experiences till now while working with automated vulnerability scanners in development pipelines. My goal was to have a solution that is customizable, scalable, mostly open-source and didn't require much resources.<br><br>
 
-My goal was to have one central place where I could configure all scanners and one central place to display all vulnerabilities. It should also be future-proof and scalable to 50-100 websites within one year. 
+Ideally I want to have one central place to configure all scanners and one central place to display all vulnerabilities.
 
 <h3>-- The Orchestrator</h3>
-The orchestration part I decided to go with Jenkins because of my previous experiences with it and the advantages it has with scalabilty and customization with plugins etc. There is almost no limit in what you could configure in Jenkins. You can write python/groovy scripts to communicate with REST API's of various tools or simply execute system commands to start docker images. 
+For the orchestration part I decided to go with Jenkins because of my previous experiences and the features it provides to scale and customize with plugins etc.<br><br>
 
-Since my resources were low, I knew that running multiple scanners (as services) at once will probably overload the VM which will cause delay or even stop scans. That's one of the reasons I decided to use dockerized versions of scanning tools to perform the scans. Once the scan finishes I would simply remove the docker instance. 
+From my past experiences I know that running multiple scanners (as services) at once will overload the VM which will cause delay or even stop scans. That's one of the reasons I decided to use dockerized versions of scanning tools to execute the scans. Once the scan is finished, I would simply remove the docker instance. I've summarized the whole process in the diagram below.
 
-<p><img src="diagram.png" width="700" height="400">
-
-Within Jenkins the possibilties are almost limitless. I quickly found docker images of different types of popular tools which I wanted to use to scan websites with. I've put the configurations of these scanners below. I simply created a timed Job for each target in Jenkins which would periodically execute the configurations below. 
+<p><img src="diagram.png" width="100%" height="50%"><br><br>
 
 <h3>-- Configurations</h3>
 
-<h4>// OWASP ZAP</h4>
-OWASP ZAP is fully dockerized and is available here: https://github.com/zaproxy/zaproxy/wiki/Docker 
+I found docker images of different types of popular tools which I used to scan websites with. Below are some example configurations you could use. I simply created a timed job for each target in Jenkins which would periodically execute these configurations. 
 
-I slightly modified the code found at https://github.com/stephendonner/docker-zap to start the docker container. You can export the results of OWASP ZAP in a variety of different outputs.
+<h4>// OWASP ZAP</h4>
+OWASP ZAP is fully dockerized and can be found <a href = "https://github.com/zaproxy/zaproxy/wiki/Docker">here</a><br><br>
+
+I forked the existing configuration from Stephen Donner and modified it slightly to meet my needs. It can be found <a href = "https://github.com/blangus/docker-zap">here</a>. You can export the results of OWASP ZAP in a variety of different outputs.
 
 <pre class="prettyprint">CONTAINER_ID=$(docker run -u zap -p 2375:2375 -d owasp/zap2docker-weekly zap.sh -daemon -port 2375 -host 0.0.0.0 -config api.disablekey=true -config scanner.attackOnStart=true -config view.mode=attack -config connection.dnsTtlSuccessfulQueries=-1 -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true)
 
@@ -55,11 +55,8 @@ I slightly modified the code found at https://github.com/stephendonner/docker-za
 TARGET_URL=$1
 
 docker exec $CONTAINER_ID zap-cli -p 2375 status -t 120 && docker exec $CONTAINER_ID zap-cli -p 2375 open-url $TARGET_URL
-
 docker exec $CONTAINER_ID zap-cli -p 2375 spider $TARGET_URL
-
 docker exec $CONTAINER_ID zap-cli -p 2375 active-scan -r $TARGET_URL
-
 docker exec $CONTAINER_ID zap-cli -p 2375 alerts
 
 # docker logs [container ID or name]
@@ -85,26 +82,24 @@ esac</pre>
 
 
 <h4>// SSL Labs</h4>
-The SSL scanner of Qualys is also dockerized and can be found here: https://github.com/jumanjihouse/docker-ssllabs-scan
+As with ZAP, Qualys' SSL scanner is also dockerized and can be found <a href = "https://github.com/jumanjihouse/docker-ssllabs-scan">here</a>.<br><br>
 
-I simply use the command below to periodically check websites for SSL configuration. I export the results to json and will show lateron how to import them in a dashboard.
+I simply use the command below to periodically check websites for SSL configuration. I export the results to json and will show lateron how to export it to a dashboard.
 
 <pre class="prettyprint">docker run --name foo jumanjiman/ssllabs-scan https://foo > sslres.json</pre>
 
-I would say the the configuration part of Jenkins and the scanners are the easy part. Next was to find a tool which could somehow import all the different findings and outputs (in different formats) of the tools and display them structured in one overview. Important keywords here are: false positive flagging, duplicate surpressing, accepting findings.
+<h3>-- The Dashboard</h3>
 
-At first I tried to go with the open-source version of Threadfix but quickly noticed some major fallbacks. Most of the time it didn't correctly import findings from various tools which resulted in findings to be missed. Also I noticed that once a finding is flagged as false positive it sometimes returned back in the report when the next scan was imported. Then someone advised me to look into Defect Dojo. At first Defect Dojo can seem quite overwhelming due to the fast amount of features, but once you get to know it, you wouldn't want to go back to anything else! Defect Dojo does all of the above things and more and has a well documented REST API.
+The configuration of Jenkins and the scanners are the easy part. Next step was to find a dashboard which could import all the different findings and outputs (in different formats) and display them in one structured overview. Important keywords here are: false positive flagging, duplicate surpressing, accepting findings.<br><br>
 
-It has import possibilities of a lot of tools:
-<import scan defect dojo> 
+At first I tried the open-source version of Threadfix but noticed some major fallbacks. Most of the time it didn't correctly import findings from various tools which resulted in findings to be missed. Also sometimes once a finding is flagged as false positive it would return back in the dashboard when the next scan was imported. Then someone advised me to look into Defect Dojo. At first Defect Dojo can seem quite overwhelming due to the fast amount of features, but once you get to know it, you wouldn't want to go back to anything else! Defect Dojo does all of the above things and more and has a sufficient REST API.<br><br>
 
-False positive reduction
-<false positive>
+One of the things I like about Defect Dojo is the integration support for default outputs of many popular scanners. <br><br>
+<img src="scanners.png" width="60%" height="60%"><br><br>
 
-Duplicate supression
-<duplicate surpression>
+After the scans are finished, Defect Dojo's REST API can be used to automatically import reports into its dashboard. This can be achieved in many different ways. I used a simple curl command within the Jenkins job to push the report to Defect Dojo once the Docker container/scanner is stopped. I've put some examples below.<br><br>
 
-After the scans are finished, you can use the REST API to automatically import reports into Defect Dojo. I use a simple curl command within the Jenkins job to push the report to Defect Dojo once the Docker container is stopped. Below some examples. Goed without saying that before you're able to import findings you need to create a project within Defect Dojo as wel as other configuration. Check out their docs for more: https://defectdojo.readthedocs.io/en/latest/
+Goes without saying that before you're able to import findings you need to create a project within Defect Dojo as wel as other configuration options. Check out their docs for <a href = "https://defectdojo.readthedocs.io/en/latest/">more</a>.
 
 <Import scan to Defect Dojo>
 
@@ -116,10 +111,20 @@ curl -i -F "file=@report.xml" -H "Authorization: ApiKey jenkins:foo" -F 'scan_ty
 <pre class="prettyprint">time=$(date +'%Y-%m-%d')
 curl -i -F "file=@sslres.json" -H "Authorization: ApiKey jenkins:foo" -F 'scan_type=SSL Labs Scan' -F 'tags=apicurl' -F 'verified=true' -F 'active=true' -F scan_date=${time} -F 'engagement=/api/v1/engagements/1/' http://127.0.0.1:8000/api/v1/importscan/</pre>
 
-Eventually the findings are all displayed within the dashboard of Defect Dojo.
-<dashboard image>
+The findings are filtered and displayed within the dashboard of Defect Dojo.<br><br>
+<img src="dashboard.png" width="100%" height="60%"><br><br>
 
-The frame is now built. From now on you can simply add more supported scanners to Jenkins jobs. You can expand with Nmap or Nessus for infrastructure scans as wel as using other web application scanners. The results can simply be exported and imported to Defect Dojo.
+<h4>// False positives and duplicates</h4>
+
+I saved the best for last. Anyone who works with security automation solutions in pipelines knows the pain of re-occuring false positives and duplicate findings of daily scans. <a href = "https://securify.nl/nl/blog/SFY20161101/handling-false-positives-in-automated-security-testing.html">In the past</a> I would try to filter out false positives on the scanner side. This works fine if you have one scanner and two websites to scan but if you want to scale up this becomes unfeasible. <br><br>
+
+One of the finest features Defect Dojo offers is a (working!) false positive removing option which after a finding is flagged as a false positive won't return in the dashboard eventhough the scanners keep reporting this finding. <br><br>
+
+The 'de-duplication' feature of Defect Dojo makes life also a lot easier. It (automatically!) detects duplicate findings from different reports and filters these out. Next time a scanner reports the same finding Defect Dojo will simply ignore it!  
+
+<h3>-- Conclusion</h3>
+
+The frame is now built. From now on you can simply expand your solution by adding more supported scanners to Jenkins jobs. You can expand with Nmap or Nessus for infrastructure scans as wel as using other web application scanners.
 
 </div>
 </body>
