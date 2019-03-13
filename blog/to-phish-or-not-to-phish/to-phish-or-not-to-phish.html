@@ -1,0 +1,67 @@
+<html> 
+<head> 
+<title>Blog - Burak Kelebek</title> 
+<script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js?skin=sunburst"></script>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+
+<body> 
+<div id="console"> 
+<center>
+<ul id="menu">
+  <li><a id="c" href="../../index.html">home</a></li>
+  |
+  <li><a id="c" href="../../resume.html">resume</a></li>
+  |
+  <li><a id="c" href="../../blog.html">blog</a></li>
+  |
+  <li><a id="c" href="../../advisory.html">advisories</a></li>
+  |
+  <li><a id="c" href="../../contact.html">contact</a></li>
+</ul></center>
+
+<title>To phish or not to phish - Blog</title>
+
+</head>
+
+<body>
+<header>
+<p class="meta">Burak Kelebek, Mar 2019</p>
+<h1 class="title">To phish or not to phish</h1>
+<p></p>
+<h3>-- Introduction</h3>
+<p>As part of my job I occasionally investigate malicious looking e-mails and phishing websites. In most cases a phishing mail looks quite obvious. It has an unknown sender, a URL redirecting to an unknown website and some text to lure you to click on the link. Once clicked the victim is redirected to a malicious website posing as an original website to gather credentials from the user.<br><br>
+
+Last week I encoutered something different. An employee of a company I work for received an ordinary phishing mail containing a URL. Normally I use something like browserling.com to check what is behind the link. Once I opened the URL with browserling, the website loaded for a couple seconds, and then after a couple redirects I was presented with the offical website of YouTube. I thought this was kind of odd but I didn't think much of it at the moment.
+
+<h3>-- Android malware</h3>
+Then a previous experience came to mind. A while back I was investigating an Android malware that was spread within Europe. After reverse-engineering the malware it looked like any other banking malware which would present an overlay on the screen of the victim to capture credentials. What made this malware different is that once it is installed on the phone of the victim the first thing it would do is check the country code of the phone. If the phone's country code was Russia, it would simply delete itself as if nothing was ever happened. The hackers behind this malware build a logic to exclude certain countries of their attack. I wondered if phishers are doing something similiar?<br><br>
+
+<blockquote class="twitter-tweet" data-lang="nl"><p lang="en" dir="ltr">Living in one of these country&#39;s? Well this <a href="https://twitter.com/hashtag/android?src=hash&amp;ref_src=twsrc%5Etfw">#android</a> <a href="https://twitter.com/hashtag/malware?src=hash&amp;ref_src=twsrc%5Etfw">#malware</a> will politely remove itself then :). <a href="https://t.co/uf5UuWVzsm">pic.twitter.com/uf5UuWVzsm</a></p>&mdash; Burak Kelebek (@blangus_) <a href="https://twitter.com/blangus_/status/902109287694131200?ref_src=twsrc%5Etfw">28 augustus 2017</a></blockquote>
+<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+<h3>-- To Phish?</h3>
+
+I looked back into the phishing mail and found out that the URL in the mail redirects users based on their geopgrahic location. So for example, victims visiting the phishing website from Poland will be redirected to the official site of YouTube. But if you're visiting from the Netherlands, you will be redirected to a phishing website disguised as PostNL (a mail delivery company in the Netherlands). Quite interesting..<br><br>
+
+In the video below you see that a victim from the Netherlands opening the URL is redirected to a phishing website. Once you're connected with a Polish server and visit the exact same site again you get redirected to YouTube.<br><br>
+
+<img src="phishing.gif"><br><br>
+
+Here's the phishing link opened with VPN (location Poland). As can be seen the user is redirected to the offical Apple page in YouTube.<br><br>
+
+<img src="PL.png"><br><br>
+
+
+Here's the exact same phishing link opened without VPN (location the Netherlands). The user is redirected to a phishing page acting as a website of PostNL.<br><br>
+
+<img src="NL.png">
+
+<h3>-- Others</h3>
+I was curious if these kind of phishing attacks are common. I couldn't find much information but I did find a phishing campaign from 2017 which used a similiar technique. In that particular case malware was delivered to your device based on the country you were visiting from. According to Cofense: "It is not as common for those attackers to deploy different malware tools based upon the geographic location of their victim." Read the whole article 
+<a href = "https://cofense.com/locky-trickbot-depends-malicious-payload-delivery-tailored-geographic-location/">here</a>.<br><br>
+
+
+</div>
+</body>
+</body> 
+</html> 
