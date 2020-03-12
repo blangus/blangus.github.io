@@ -1,0 +1,79 @@
+<html> 
+<head> 
+<title>Blog - Burak Kelebek</title> 
+<script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js?skin=sunburst"></script>
+<link rel="stylesheet" type="text/css" href="../../style.css">
+
+<body> 
+<div id="console"> 
+<center>
+<ul id="menu">
+  <li><a id="c" href="../../index.html">home</a></li>
+  |
+  <li><a id="c" href="../../resume.html">resume</a></li>
+  |
+  <li><a id="c" href="../../blog.html">blog</a></li>
+  |
+  <li><a id="c" href="../../advisory.html">advisories</a></li>
+  |
+  <li><a id="c" href="../../contact.html">contact</a></li>
+</ul></center>
+
+<title>Runtime security with Falco - Blog</title>
+
+</head>
+
+<body>
+<header>
+<p class="meta">Burak Kelebek, Mar 2020</p>
+<h1 class="title">Runtime security with Falco</h1>
+<p></p>
+<h3>-- Introduction</h3>
+<p>Lately I've been researching possibilities to detect anomalies during runtime in containers. I came across Sysdig’s open source project <a href="https://github.com/falcosecurity/falco">Falco</a> which seems to do just that. Quoted from their site: "Falco, the open source cloud-native runtime security project, is the defacto Kubernetes threat detection engine. Falco detects unexpected application behavior and alerts on threats at runtime."<br><br>
+
+Sounds good..<br><br>
+
+<h3>-- How does it work?</h3>
+Falco runs as a privileged container and uses <a href="https://en.wikipedia.org/wiki/Berkeley_Packet_Filter">eBFP</a> to capture system calls. Events that match a certain filter expression (rule) result in an alert which can be outputted in different ways (for example as a push message to Slack). It comes pre-equipped with a lot of essential rules and has the possibility to be extended with custom rules.<br><br>
+
+Below is a simple example taken from <a href="https://falco.org/docs/rules/">Falco’s manual</a> of a condition that alerts whenever a bash shell is run inside a container.<br>
+
+<code><pre class="prettyprint">container.id != host and proc.name = bash</pre></code>
+
+The first clause checks that the event happened in a container (Sysdig events have a container field that is equal to "host" if the event happened on a regular host). The second clause checks that the process name is bash. Note that this condition does not even include a clause with a system call! It only checks event metadata. Because of that, if a bash shell does start up in a container, Falco outputs events for every syscall that is performed by that shell.<br><br>
+
+Here is another example of a rule that triggers when an attacker manages to start netcat on a victim’s container.<br>
+<code><pre class="prettyprint">
+- macro: network_tool_procs
+  condition: (proc.name in (network_tool_binaries))
+
+- list: network_tool_binaries
+  items: [nc, ncat, nmap, dig, tcpdump, tshark, ngrep, telnet, mitmproxy, socat]
+
+- rule: Launch Suspicious Network Tool in Container
+  desc: Detect network tools launched inside container
+  condition: >
+    spawned_process and container and network_tool_procs
+  output: >
+    Network tool launched in container (user=%user.name command=%proc.cmdline parent_process=%proc.pname
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: NOTICE
+  tags: [network, process, mitre_discovery, mitre_exfiltration]</pre></code>
+
+The ‘condition’ field uses the <a href="https://github.com/draios/sysdig/wiki/sysdig-user-guide#filtering">Sysdig filter syntax</a>.<br><br>
+
+To make things more clear, i've made a demo below which shows Falco in action.<br><br>
+
+<h3>-- Set-up Demo</h3>
+
+My test set-up consists of two docker containers. One is Falco running as a privileged container and the second one is a vulnerable website built by <a href="https://hub.docker.com/r/vulnerables/web-dvwa">DVWA</a> running in a separate container. As can bee seen below, once I try to execute a command in the container through command injection in the website Falco matches the event with one of its rules and forwards the alert to Slack.<br><br><br>
+
+<img src="falco-demo.gif"><br><br>
+
+<h3>-- Further reads</h3>
+I would strongly recommend to read <a href="https://medium.com/@SkyscannerEng/kubernetes-security-monitoring-at-scale-with-sysdig-falco-a60cfdb0f67a">Skyscanner's article</a> about their experiences implementing Falco within their Kubernetes clusters.<br><br>
+
+</div>
+</body>
+</body> 
+</html> 
