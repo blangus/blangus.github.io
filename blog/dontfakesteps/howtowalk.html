@@ -39,7 +39,7 @@ Unfortunately, I'm not really a walker so I decided to see if I could do somethi
 <img src="burp2.png" width="800" height="550"><br><br>
 Request by the app to the server with the amount of steps made in the body.<br><br><br>
   
-It seems the app is generating a hash when the request is made, and if anything in the request is altered it fails the check on the server-side (as seen above). It would probably take me considerably more effort to reverse the method they use to create the hash than just to take the 10K steps :). <br><br><br>
+It seems the app is generating a hash when the request is made, and if anything in the request is altered it fails the check on the server-side (as seen above). It would probably take me considerably more effort to reverse the method they use to create the hash than just to make the 10K steps :). <br><br><br>
 
 <img src="apk.png" width="500" height="400"><br><br>
 Snippet of the code from the apk that is responsible for checking if you didn't mess with the values.<br><br><br>
