@@ -28,30 +28,32 @@
 <p class="meta">Iron Flower, Sep 2023</p>
 <h1 class="title">How to walk in Steptember</h1>
 <p>
-Recently a company I work started a charity event where it challenges its employees to reach 70.0000.000 steps in total. If reached it will double the donation to charity.<br><br>
+Recently a company I work for started a charity event where it challenges its employees to reach 70.0000.000 steps in one month. An external app is required to be installed on your phone and will be used to count the steps made each day. If the goal is reached the amount of donation that was to be made will be doubled.<br><br>
   
-Naturally I was really excited to have the opportunity to contribute to such a noble cause. <br><br>
+Naturally I was really excited to have the opportunity to contribute to such a noble cause. <br><br><br>
 
-<img src="lets-go.png" width="300" height="300"><br><br>
+<img src="lets-go.png" width="300" height="300"><br><br><br>
    
-Unfortunately, I'm not really a walker so I decided to see if I could do something with the app. With a proxy tool, I found the request the app is making to the server with the amount of steps you made. Sadly, it wasn't as easy as changing the step value in the request to achieve a much higher step amount than what you actually walked. <br><br>
+Unfortunately, I'm not really a walker so I decided to see if I could do something with the app. With a proxy tool, I found the request the app is making to the server with the amount of steps you made each day. Sadly, it wasn't as easy as changing the step value in the request to achieve a much higher step amount than what you actually walked. <br><br><br>
 
-<img src="burp.png" width="700" height="500"><br><br>
+<img src="burp2.png" width="800" height="550"><br><br>
+Request by the app to the server with the amount of steps made in the body.<br><br><br>
   
-It seems the app is generating a hash when the request is made, and if anything in the request is altered it fails the check on the server-side. It would probably take me considerably more effort to reverse the method they use to create the hash than just to take the 10K steps :). <br><br>
+It seems the app is generating a hash when the request is made, and if anything in the request is altered it fails the check on the server-side (as seen above). It would probably take me considerably more effort to reverse the method they use to create the hash than just to take the 10K steps :). <br><br><br>
 
 <img src="apk.png" width="500" height="400"><br><br>
+Snippet of the code from the apk that is responsible for checking if you didn't mess with the values.<br><br><br>
   
-I started to play around with the app in the emulator and tried to set a gps route and see if it would work. The app did actually register the amount of KM walked but it didn't register any steps. After some digging I found that making specific changes to the gyroscope/accelaration sensors is needed to simulate a walking motion. So with the help of Chat-GTP I wrote and tweaked a script that would continously change these sensors and effectively 'walk' while the emulator is running. <br><br>
+I started to play around with the app in the emulator and tried to set a gps route and see if that would work. The app did actually register the distance walked but it didn't register any steps. After some digging I found that making specific changes to the gyroscope/accelaration sensors in the emulator is needed to simulate a walking motion. So with the help of Chat-GTP I wrote and tweaked a script that continously changes these sensor values and effectively 'walks' while the emulator is running. <br><br><br>
 
-<img src="steps.gif" width="700" height="500"><br><br><br>
-  <the script running in the background changing the sensor values in the emulator>
+<img src="steps.gif" width="800" height="550"><br><br>
+The script running in the background changing the sensor values in the emulator.<br><br><br>
 
 <img src="board.png" width="300" height="300"><br><br>  
- <the scoreboard after one a couple hours>   
+The scoreboard before I pulled out.   <br><br><br>
 
 But after seeing all my colleagues doing their best, walking morning and night for a good cause and cheering each other on, while I was sitting on my lazy ass trying to win made me think about my actions. My consience kicked in and I decided to pull out of the race. Either way, it was fun playing around with the emulator and we learned some lessons along the way. 
-<br><br>
+<br><br><br>
 If interested, check out my repo: <a href="https://github.com/blangus/fakestepsandroid">fakestepsandroid</a> (use responsibly)
 
   
