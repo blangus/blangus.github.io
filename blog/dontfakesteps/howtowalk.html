@@ -44,7 +44,7 @@ It seems the app is generating a hash when the request is made, and if anything 
 <img src="apk.png" width="500" height="400"><br><br>
 Snippet of the code from the apk that is responsible for checking if you didn't mess with the values.<br><br><br>
   
-I started to play around with the app in the emulator and tried to set a gps route and see if that would work. The app did actually register the distance walked but it didn't register any steps. After some digging I found that making specific changes to the gyroscope/accelaration sensors in the emulator is needed to simulate a walking motion. So with the help of Chat-GTP I wrote and tweaked a script that continously changes these sensor values and effectively 'walks' while the emulator is running. <br><br><br>
+I started to play around with the app in the emulator and tried to set a gps route and see if that would work. The app did actually register the distance walked but it didn't register any steps. After some digging I found that making specific changes to the gyroscope/accelaration sensors in the emulator is needed to simulate a walking motion. So with the help of Chat-GPT I wrote and tweaked a script that continously changes these sensor values and effectively 'walks' while the emulator is running. <br><br><br>
 
 <img src="steps.gif" width="800" height="550"><br><br>
 The script running in the background changing the sensor values in the emulator.<br><br><br>
